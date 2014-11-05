@@ -2,27 +2,23 @@
 
 import os
 import sys
+import subprocess
+import optparse
+
+USAGE = "Usage: %prog repositories* command [% command]*"
 
 DESCRIPTION = """
-Usage: {0} repositories* command [% command]*
-
 Apply the command(s) to the listed set of repositories.
-"""
+""".strip()
 
-
-def printUsageError(error):
-    """
-    Print the specified 'error', print the usage text, and exit with a failure 
-    status.
+class PlainHelpFormatter(optparse.IndentedHelpFormatter): 
+    def format_description(self, description):
+        if description:
+            return description + "\n"
+        else:
+            return ""
     
-    Args:
-        error (string) : an error string to print.
-    """
-    print(error + "\n")
-    print(DESCRIPTION).format(sys.argv[0]);
-    sys.exit(-1)
-    
-def parseArgument(arguments, options, repositories, commands):
+def parseArgument(arguments, repositories, commands):
     """
     Parse the specified command line 'arguments' and populate the specified list of
     'repositories' and 'commands'.
@@ -35,9 +31,7 @@ def parseArgument(arguments, options, repositories, commands):
         options    ::= '--' string
         
      Args:
-        arguments (string) : the command line arguments to parse
-        
-        options ([string) : the parsed list of options
+        arguments (string) : the command line arguments to parse        
         
         repositories ([string]) : the parsed list of repositories
         
@@ -46,21 +40,13 @@ def parseArgument(arguments, options, repositories, commands):
     """
 
     class ParseState:
-        options = 1
-        repositories = 2
-        commands = 3
+        repositories = 1
+        commands = 2
         
-    state    = ParseState.options
+    state    = ParseState.repositories
     command  = []
     
-    for argument in arguments:
-        if (state == ParseState.options):
-            if ("--" == argument[0:2]):
-                options.append(argument[2:])
-            else:
-                state = ParseState.repositories
-         
-                        
+    for argument in arguments:                        
         if (state == ParseState.repositories):
             if (os.path.isdir(argument)):   
                 repositories.append(argument)
@@ -75,27 +61,59 @@ def parseArgument(arguments, options, repositories, commands):
                 command = []
                 
     if (len(command) != 0):
-        commands.append(command)
-                
-    if (len(commands) == 0):
-        printUsageError("No commands specified.")
+        commands.append(command)                
         
-    if (len(repositories) == 0):
-        
-        printUsageError("No repositories specified.")
+def runCommand(repository, commands):
+    originalPath = os.getcwd()
+    
+    for command in commands:
+        os.chdir(repository)
+        subprocess.check_call(command)
+    os.chdir(originalPath)
 
+def runCommands(repositories, commands):
+    for repository in repositories:
+        runCommand(repository, commands)
+        
 def main():
     repositories = []
     commands     = []
-    options      = []
     
-    parseArgument(sys.argv[1:], options, repositories, commands)
-       
-    print options
-    print repositories
-    print commands
+    parser = optparse.OptionParser(
+                          description = DESCRIPTION,
+                          formatter = PlainHelpFormatter())
+                          
+    parser.disable_interspersed_args()
+    
+    parser.add_option("-v",
+                      "--verbose",
+                      action="store_true",
+                      dest="verbose",
+                      default=False,
+                      help="Print verbose output")
+
+    (options, args) = parser.parse_args()                      
+    
+    parseArgument(args, repositories, commands)
+    
+    if (len(commands) == 0):
+        parser.error("No commands specified.")
+        
+    if (len(repositories) == 0):        
+        parser.error("No repositories specified.")
+    
+    if (options.verbose):
+        print options
+        print repositories
+        print commands
+
+    runCommands(repositories, commands)
+    
+
     
 if __name__ == "__main__":
     main()
 
 
+
+    
