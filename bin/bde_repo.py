@@ -68,7 +68,14 @@ def runCommand(repository, commands):
     
     for command in commands:
         os.chdir(repository)
-        subprocess.check_call(command)
+        
+        if (sys.platform == "win32"):
+            # For a windows python, execute commands in a subshell (needed for
+            # cleaner git bash integration)
+            
+            subprocess.check_call(' '.join(command), shell=True)
+        else:
+            subprocess.check_call(command)
     os.chdir(originalPath)
 
 def runCommands(repositories, commands):
@@ -101,12 +108,13 @@ def main():
         
     if (len(repositories) == 0):        
         parser.error("No repositories specified.")
-    
+
     if (options.verbose):
         print options
         print repositories
         print commands
 
+	
     runCommands(repositories, commands)
     
 
