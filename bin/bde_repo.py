@@ -7,6 +7,9 @@ import subprocess
 import optparse
 import pickle
 
+
+# =============   Options Parsing =================
+
 USAGE = """
    Usage: %prog [options] repositories* command [% command]*
           %prog [options] (+|-)@tag repositories*
@@ -17,7 +20,6 @@ Apply the command(s) to the listed set of repositories.
 """.strip()
 
 DEFAULT_CONFIG_FILENAME = os.environ["HOME"] + "/.bde_repo.cfg"
-tags = {}
 
 class PlainHelpFormatter(optparse.IndentedHelpFormatter):
     def format_description(self, description):
@@ -26,10 +28,7 @@ class PlainHelpFormatter(optparse.IndentedHelpFormatter):
         else:
             return ""
 
-parser = optparse.OptionParser(
-                        usage = USAGE,
-                        description = DESCRIPTION,
-                        formatter = PlainHelpFormatter())
+# =========  Tag Dictionary =========
 
 
 def parseArgument(arguments, repositories, commands):
@@ -127,7 +126,15 @@ def isValidTag(tag):
     #TBD: Improve this
     return 1 < len(tag)
 
-def processTagChange(options, args):
+def readTagsFromFile(filename):
+    #TBD: Improve this
+    return pickle.load(open(filename,"rb"))
+
+def writeTagsToFile(filename, tags):
+    #TBD: Improve this
+    pickle.dump(tags, open(filename, "wb"))
+    
+def processTagChange(tags, options, args):
     (directories, remainingArguments) = processDirectoryArguments(args[1:])
 
     if (0 != len(remainingArguments)):
@@ -155,16 +162,20 @@ def processTagChange(options, args):
         adjustedDirectories.difference(directories)
 
     tags[tag] = adjustedDirectories
-    pickle.dump(tags, open(options.configFileName, "wb"))
-    print tags
+    return tags
+
 
 def main():
 
     # The tag removal command, -@tag, will be treated as an options
     # by optparse, so we extract the actual options.
-
     (options, args) = extractOptions(sys.argv[1:])
 
+
+    parser = optparse.OptionParser(
+                        usage = USAGE,
+                        description = DESCRIPTION,
+                        formatter   = PlainHelpFormatter())
 
     parser.disable_interspersed_args()
 
@@ -185,17 +196,18 @@ def main():
 
 
     (options, dummy) = parser.parse_args(options)
-    
-    if (os.path.isfile(options.configFileName)):
-        print ("load")
-        tags = pickle.load(open(options.configFileName,"rb"))    
-
-    print tags
+       
     if (0 == len(args)):
         parser.error("No repositories or commands supplied.")
 
+    tags = {}    
+    if (os.path.isfile(options.configFileName)):
+        tags = readTagsFromFile(options.configFileName)    
+
     if (args[0][0:2] == "-@" or args[0][0:2] == "+@"):
-        processTagChange(options, args)
+        tags = processTagChange(tags, options, args)
+        print tags
+        writeTagsToFile(options.configFileName, tags)
 
     else:
         print("Not tag?")
@@ -219,8 +231,6 @@ def junk():
 
 	
     runCommands(repositories, commands)
-
-
 
 if __name__ == "__main__":
     main()

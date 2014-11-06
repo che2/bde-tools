@@ -139,3 +139,4 @@ def checkout(repositories, clean, forceCheckout):
             os.chdir(path)
             checkoutBranchAndPull(branch, forceCheckout)
             os.chdir(currentPath)
+
