@@ -2,10 +2,14 @@
 
 import os
 import sys
+import sets
 import subprocess
 import optparse
 
-USAGE = "Usage: %prog repositories* command [% command]*"
+USAGE = """
+   Usage: %prog [options] repositories* command [% command]*
+          %prog [options] (+|-)@tag repositories*
+"""
 
 DESCRIPTION = """
 Apply the command(s) to the listed set of repositories.
@@ -17,7 +21,13 @@ class PlainHelpFormatter(optparse.IndentedHelpFormatter):
             return description + "\n"
         else:
             return ""
-    
+
+parser = optparse.OptionParser(
+                        usage = USAGE,
+                        description = DESCRIPTION,
+                        formatter = PlainHelpFormatter())
+
+                        
 def parseArgument(arguments, repositories, commands):
     """
     Parse the specified command line 'arguments' and populate the specified list of
@@ -82,13 +92,74 @@ def runCommands(repositories, commands):
     for repository in repositories:
         runCommand(repository, commands)
         
-def main():
-    repositories = []
-    commands     = []
+def extractOptions(argv):
+    options   = []
+    arguments = []
+        
+    for idx, arg in enumerate(argv):
+        if (arg[0] == "-" and arg[1]!="@"):
+            options.append(arg)
+        else:
+            arguments = argv[idx:]
+            break
+            
+    return (options, arguments)
+
     
-    parser = optparse.OptionParser(
-                          description = DESCRIPTION,
-                          formatter = PlainHelpFormatter())
+def processDirectoryArguments(arguments):
+    directories        = []
+    remainingArguments = []
+    
+    for idx, arg in enumerate(arguments):
+        if (os.path.isdir(arg)):
+            directories.append(arg)
+        else:
+            remainingArguments = arguments[idx:]
+            break
+            
+    return (directories, remainingArguments)
+    
+def isValidTag(tag):
+    #TBD: Improve this
+    return 1 < len(tag)
+    
+def processTagChange(options, args):
+    (directories, remainingArguments) = processDirectoryArguments(args[1:])
+    
+    if (0 != len(remainingArguments)):
+        parser.error("Unexpected non-directory arguments: " + " ".join(remainingArguments))
+        
+    if (not isValidTag(args[0][1:])):
+        parser.error("Invalid tag: " + args[0])
+
+    tags = {}
+    tag = args[0][1:]
+    add = args[0][0] == "+"
+    
+    if (tags.has_key(tag)):
+        adjustedDirectories = tags[tag]
+    else:
+        adjustedDirectories = sets.Set()
+    
+    if (add):
+        if (options.verbose):
+            print("{0} add {1}".format(tag, directories))
+        adjustedDirectories.update(directories)
+    else:
+        if (options.verbose):
+            print("{0} remove {1}".format(tag, directories))
+        adjustedDirectories.difference(directories)
+        
+    tags[tag] = adjustedDirectories
+
+    
+def main():
+    
+    # The tag removal command, -@tag, will be treated as an options
+    # by optparse, so we extract the actual options.
+    
+    (options, args) = extractOptions(sys.argv[1:])
+    
                           
     parser.disable_interspersed_args()
     
@@ -98,9 +169,22 @@ def main():
                       dest="verbose",
                       default=False,
                       help="Print verbose output")
-
-    (options, args) = parser.parse_args()                      
     
+    (options, dummy) = parser.parse_args(options)                      
+ 
+    if (0 == len(args)):
+        parser.error("No repositories or commands supplied.")
+        
+    if (args[0][0:2] == "-@" or args[0][0:2] == "+@"):
+        processTagChange(options, args)
+
+    else:
+        print("Not tag?")
+#       processAction(options, args)
+        
+def junk():        
+    repositories = []
+    commands     = []    
     parseArgument(args, repositories, commands)
     
     if (len(commands) == 0):
