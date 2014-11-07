@@ -2,7 +2,6 @@
 
 import os
 import sys
-import sets
 import subprocess
 import optparse
 import pickle
@@ -11,8 +10,9 @@ import pickle
 # =============   Options Parsing =================
 
 USAGE = """
-   Usage: %prog [options] repositories* command [% command]*
-          %prog [options] (+|-)@tag repositories*
+   Usage: %prog [options] [repository]* command [% command]*
+          %prog [options] set  @[tag] [repository]*
+          %prog [options] list @[tag]*
 """
 
 DESCRIPTION = """
@@ -28,10 +28,84 @@ class PlainHelpFormatter(optparse.IndentedHelpFormatter):
         else:
             return ""
 
-# =========  Tag Dictionary =========
 
+class InputError(Exception):
+    """Exception raised for errors in the input.
 
-def parseArgument(arguments, repositories, commands):
+    Attributes:
+        msg  -- explanation of the error
+    """
+    def __init__(self, msg):        
+        self.msg = msg       
+
+def runCommand(options, repository, commands):
+    originalPath = os.getcwd()
+
+    for command in commands:
+        os.chdir(repository)
+        
+        if (options.verbose):
+            print("\n> {0}$ {1}\n".format(repository,' '.join(command)))
+            
+        if (sys.platform == "win32"):
+            # For a windows python, execute commands in a subshell (needed for
+            # cleaner git bash integration)
+
+            subprocess.check_call(' '.join(command), shell=True)
+        else:
+            subprocess.check_call(command)
+    os.chdir(originalPath)
+
+def runCommands(options, repositories, commands):
+    for repository in repositories:
+        runCommand(options, repository, commands)
+
+def processDirectoryArguments(arguments):
+    directories        = []
+    remainingArguments = []
+
+    for idx, arg in enumerate(arguments):
+        if (os.path.isdir(arg)):
+            directories.append(arg)
+        else:
+            remainingArguments = arguments[idx:]
+            break
+
+    return (directories, remainingArguments)
+
+def parseRepositories(tags, arguments):
+    repositories       = []
+    remainingArguments = []
+
+    for idx, arg in enumerate(arguments):
+        if (arg[0] == "@"):
+            if (not tags.has_key(arg)):
+                raise InputError("Invalid tag: {0}".format(arg))
+            repositories = repositories + tags[arg]
+        elif (os.path.isdir(arg)):
+            repositories.append(arg)
+        else:
+            remainingArguments = arguments[idx:]
+            break
+            
+    return (repositories, remainingArguments)
+
+def parseCommands(arguments):
+    commands = []
+    command  = []
+    
+    for argument in arguments:
+        if (argument != "%"):
+            command.append(argument)
+        else:
+            commands.append(command)
+            command = []
+
+    if (len(command) != 0):
+        commands.append(command)
+    return commands
+
+def processRunCommands(tags, options, arguments):
     """
     Parse the specified command line 'arguments' and populate the specified list
     of 'repositories' and 'commands'.
@@ -51,80 +125,20 @@ def parseArgument(arguments, repositories, commands):
         commands ([[string]]) : the parsed list of commands, where each command
           is a list of strings
     """
+    (repositories, remainingArguments) = parseRepositories(tags, arguments)
+    commands = parseCommands(remainingArguments)
+    
+    if (len(commands) == 0):
+        raise InputError("No commands specified.")
 
-    class ParseState:
-        repositories = 1
-        commands = 2
-
-    state    = ParseState.repositories
-    command  = []
-
-    for argument in arguments:
-        if (state == ParseState.repositories):
-            if (os.path.isdir(argument)):
-                repositories.append(argument)
-            else:
-                state = ParseState.commands
-
-        if (state == ParseState.commands):
-            if (argument != "%"):
-                command.append(argument)
-            else:
-                commands.append(command)
-                command = []
-
-    if (len(command) != 0):
-        commands.append(command)
-
-def runCommand(repository, commands):
-    originalPath = os.getcwd()
-
-    for command in commands:
-        os.chdir(repository)
-
-        if (sys.platform == "win32"):
-            # For a windows python, execute commands in a subshell (needed for
-            # cleaner git bash integration)
-
-            subprocess.check_call(' '.join(command), shell=True)
-        else:
-            subprocess.check_call(command)
-    os.chdir(originalPath)
-
-def runCommands(repositories, commands):
-    for repository in repositories:
-        runCommand(repository, commands)
-
-def extractOptions(argv):
-    options   = []
-    arguments = []
-
-    for idx, arg in enumerate(argv):
-        if (arg[0] == "-" and arg[1]!="@"):
-            options.append(arg)
-        else:
-            arguments = argv[idx:]
-            break
-
-    return (options, arguments)
-
-
-def processDirectoryArguments(arguments):
-    directories        = []
-    remainingArguments = []
-
-    for idx, arg in enumerate(arguments):
-        if (os.path.isdir(arg)):
-            directories.append(arg)
-        else:
-            remainingArguments = arguments[idx:]
-            break
-
-    return (directories, remainingArguments)
-
+    if (len(repositories) == 0):
+        raise InputError("No repositories specified.")
+     
+    runCommands(options, repositories, commands)
+	
 def isValidTag(tag):
     #TBD: Improve this
-    return 1 < len(tag)
+    return 1 < len(tag) and "@"==tag[0]
 
 def readTagsFromFile(filename):
     #TBD: Improve this
@@ -134,44 +148,42 @@ def writeTagsToFile(filename, tags):
     #TBD: Improve this
     pickle.dump(tags, open(filename, "wb"))
     
-def processTagChange(tags, options, args):
+def processSetTag(tags, options, args):
     (directories, remainingArguments) = processDirectoryArguments(args[1:])
 
     if (0 != len(remainingArguments)):
-        parser.error("Unexpected non-directory arguments: " + 
+        raise InputError("Unexpected non-directory arguments: " + 
                      " ".join(remainingArguments))
 
-    if (not isValidTag(args[0][1:])):
-        parser.error("Invalid tag: " + args[0])
+    if (not isValidTag(args[0])):
+        raise InputError("Invalid tag: " + args[0])
 
-    tag = args[0][1:]
-    add = args[0][0] == "+"
+    tag = args[0]
 
-    if (tags.has_key(tag)):
-        adjustedDirectories = tags[tag]
-    else:
-        adjustedDirectories = sets.Set()
-
-    if (add):
+    if (0 < len(directories)):
         if (options.verbose):
-            print("{0} add {1}".format(tag, directories))
-        adjustedDirectories.update(directories)
+            print("{0} = {1}".format(tag, directories))
+        tags[tag] = directories
     else:
         if (options.verbose):
-            print("{0} remove {1}".format(tag, directories))
-        adjustedDirectories.difference(directories)
-
-    tags[tag] = adjustedDirectories
+            print("remove {0}".format(tag, directories))
+        if (tags.has_key(tag)):
+            del tags[tag]
+    
     return tags
 
+def processListTags(tags, options, args):
+    if (0 == len(args)):
+        keys = sorted(tags.keys())
+    else:
+        keys = args
+    
+    for key in keys:
+        if (not tags.has_key(key)):
+            raise InputError("Invalid tag: {0}".format(key))
+        print("{0} {1}".format(key, ' '.join(map(lambda x: "'" + x + "'", tags[key]))))
 
 def main():
-
-    # The tag removal command, -@tag, will be treated as an options
-    # by optparse, so we extract the actual options.
-    (options, args) = extractOptions(sys.argv[1:])
-
-
     parser = optparse.OptionParser(
                         usage = USAGE,
                         description = DESCRIPTION,
@@ -195,43 +207,31 @@ def main():
                           DEFAULT_CONFIG_FILENAME))
 
 
-    (options, dummy) = parser.parse_args(options)
+    (options, args) = parser.parse_args()
        
-    if (0 == len(args)):
-        parser.error("No repositories or commands supplied.")
-
     tags = {}    
+           
     if (os.path.isfile(options.configFileName)):
+        if (options.verbose):
+            print("Reading configuration file: {0}".format(options.configFileName))
         tags = readTagsFromFile(options.configFileName)    
+    elif (options.verbose):
+        print("Configuration file not found: {0}".format(options.configFileName))
 
-    if (args[0][0:2] == "-@" or args[0][0:2] == "+@"):
-        tags = processTagChange(tags, options, args)
-        print tags
-        writeTagsToFile(options.configFileName, tags)
-
-    else:
-        print("Not tag?")
-#       processAction(options, args)
-
-def junk():
-    repositories = []
-    commands     = []
-    parseArgument(args, repositories, commands)
-
-    if (len(commands) == 0):
-        parser.error("No commands specified.")
-
-    if (len(repositories) == 0):
-        parser.error("No repositories specified.")
-
-    if (options.verbose):
-        print options
-        print repositories
-        print commands
-
-	
-    runCommands(repositories, commands)
-
+    try:
+        if (args[0] == "set"):
+            tags = processSetTag(tags, options, args[1:])
+            writeTagsToFile(options.configFileName, tags)
+            if (options.verbose):
+                print("Tags: {0}".format(tags))
+        elif (args[0] == "list"):
+            processListTags(tags, options, args[1:])
+        else:
+            processRunCommands(tags, options, args)
+            
+    except InputError as e:
+        parser.error(e.msg)
+        
 if __name__ == "__main__":
     main()
 
