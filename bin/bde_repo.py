@@ -279,8 +279,8 @@ def runCommands(options, directories, commands):
 
         commands (string) : commands to run
     """
-    for repository in repositories:
-        runCommand(options, repository, commands)
+    for directory in directories:
+        runCommand(options, directory, commands)
 
 
 def processRunCommandsAction(tags, options, arguments):
