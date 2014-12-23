@@ -2,32 +2,37 @@
 
 from __future__ import print_function
 
+import argparse
 import logging
 import os
+import subprocess
+import signal
 import sys
 import threading
-import argparse
-import subprocess
 
 
 class TestStatus(object):
     def __init__(self, status_cond):
         self._status_cond = status_cond
         self._case_num = 0
-        self.done_flag = False
+        self.is_done = False
+        self.is_success = True
 
     def next_test_case(self):
         with self._status_cond:
-            if self.done_flag:
+            if self.is_done:
                 return -1
             else:
                 self._case_num += 1
                 return self._case_num
 
+    def notify_failure(self):
+        self.is_success = False
+
     def notify_done(self):
         self._status_cond.acquire()
         try:
-            self.done_flag = True
+            self.is_done = True
             self._status_cond.notify()
         finally:
             self._status_cond.release()
@@ -37,13 +42,16 @@ class TestInfo(object):
     def __init__(self, args):
         self._args = args
 
+    def is_verbose(self):
+        return self._args.verbosity > 0
+
     def get_test_run_cmd(self, test_case):
-        args = [self._args.path[0], str(test_case)]
+        cmd = [self._args.path[0], str(test_case)]
 
         if self._args.verbosity > 0:
-            args.extend(['v' for n in range(self._args.verbosity)])
+            cmd.extend(['v' for n in range(self._args.verbosity)])
 
-        return args
+        return cmd
 
 
 class TestCaseRunner(threading.Thread):
@@ -53,12 +61,13 @@ class TestCaseRunner(threading.Thread):
         self._status = status
         self.proc = None
         self.id_ = id_
+        self.case = 0
 
     def log(self, message):
-        logging.info("Case %d: %s" % (self.case, message))
+        logging.info('CASE %2d: %s' % (self.case, message))
 
     def debug(self, message):
-        logging.debug("Case %d: %s" % (self.case, message))
+        logging.debug('CASE %2d: %s' % (self.case, message))
 
     def run(self):
         while True:
@@ -68,74 +77,98 @@ class TestCaseRunner(threading.Thread):
             if self.case <= 0:
                 return
 
-            self.debug("START")
+            self.debug('START')
             cmd = self._info.get_test_run_cmd(self.case)
-            self.debug("CMD %s" % cmd)
+            self.debug('COMMAND %s' % cmd)
 
             try:
                 self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                              stderr=subprocess.STDOUT)
                 (out, err) = self.proc.communicate()
-                ret = self.proc.returncode
+                rc = self.proc.returncode
             except Exception as e:
-                self.log("FAILED (%s)" % str(e))
+                self.log('EXCEPTION (%s)' % str(e))
                 self._status.notify_done()
                 return
 
-            if out:
-                if not isinstance(out, str):
-                    out = out.decode(sys.stdout.encoding or 'iso8859-1')
-            else:
-                out = ''
+            def decode_text(txt):
+                if txt:
+                    if not isinstance(out, str):
+                        return txt.decode(sys.stdout.encoding or 'iso8859-1')
+                return txt if txt else ''
 
-            # BDE uses the -1 return code to indciate that no more tests are
+            # BDE uses the -1 return code to indicate that no more tests are
             # left to run.
-            #   * On Linux, return code is always forced to be unsigned.
-            #   * On Windows, return code is signed.
-            #   * On Cygwin, -1 return code is 127!
-            if (self.case > 99 or ret == -1 or ret == 255 or ret == 127):
-                self.debug("DOES NOT EXIST")
-                # self._status.notify_done()
+            #   * On Linux, -1 becomes 255, because return codes are always
+            #     unsigned.
+            #   * On Windows, -1 stay as -1.
+            #   * On Cygwin, -1 becomes 127!
+            #
+            # To handle malformed test drivers, stop when there are more
+            # than 99 test cases.
+            if (rc == 255 or rc == -1 or rc == 127 or self.case > 99):
+                self.debug('DOES NOT EXIST')
+                self._status.notify_done()
                 return
-            elif ret == 0:
-                self.log("SUCCESS (ret: %d):\n%s" % (ret, out))
+            elif rc == 0:
+                if self._info.is_verbose():
+                    msg = ' (rc %d):\n%s' % (rc, decode_text(out))
+                else:
+                    msg = ''
+                self.log('SUCCESS%s' % msg)
             else:
-                self.log("FAILED (ret: %d):\n%s" % (ret, out))
+                self.log('FAILED (rc %d):\n%s' % (rc, decode_text(out)))
+                self._status.notify_failure()
 
 
 class TestDriverRunner:
-    def __init__(self, args, num_jobs):
+    def __init__(self, args):
         self._args = args
         self._info = TestInfo(args)
         self._status_cond = threading.Condition()
         self._status = TestStatus(self._status_cond)
-        self._num_jobs = num_jobs
+        self._num_jobs = self._args.jobs
         self._workers = [TestCaseRunner(j, self._info, self._status)
-                         for j in range(num_jobs)]
+                         for j in range(self._num_jobs)]
 
-    def _terminate_workers(self):
-        logging.info("TIMED OUT AFTER %d SECONDS" % self._args.timeout)
+    def _terminate_procs(self):
         for worker in self._workers:
-            # The following method to terminate processes is probably not
-            # thread safe with out locks, but considering that we are a test
-            # driver runner, doing so is probably acceptable.
-            if worker.is_alive() and worker.proc:
-                logging.info("TERMINATING CASE %d [thread %d] **" %
-                             (worker.case, worker.id_))
-                worker.proc.terminate()
+            # The following technique to terminate processes is not thread
+            # safe, but this is acceptable considering that a race condition
+            # will almost like mean that the test process was already
+            # terminated, and the worst case scenario is that a few extra test
+            # cases are run (in which case the user can use C-c to quit).
+            try:
+                if worker.is_alive() and worker.proc and worker.case > 0:
+                    logging.info("TERMINATING TEST CASE %d" % worker.case)
+                    worker.proc.terminate()
+            except:
+                pass
 
     def start(self):
         for worker in self._workers:
             worker.start()
 
-        timer = threading.Timer(self._args.timeout, self._terminate_workers)
+        def timeout_handler():
+            logging.info("TIMED OUT AFTER %ss" % self._args.timeout)
+            self._status.notify_done()
+            self._terminate_procs()
+
+        def sigint_handler(signal, frame):
+            logging.info("CAUGHT SIG_INT")
+            self._status.notify_done()
+            self._terminate_procs()
+
+        timer = threading.Timer(self._args.timeout, timeout_handler)
         timer.start()
+
+        signal.signal(signal.SIGINT, sigint_handler)
         logging.debug("TIMER STARTED")
 
         self._status_cond.acquire()
         try:
-            if not self._status.done_flag:
-                self._status_cond.wait(1)
+            if not self._status.is_done:
+                self._status_cond.wait()
         finally:
             self._status_cond.release()
 
@@ -143,6 +176,11 @@ class TestDriverRunner:
             worker.join()
 
         timer.cancel()
+
+        if self._status.is_success:
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
 if __name__ == '__main__':
 
@@ -161,18 +199,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.debug:
-        logging_level = logging.DEBUG
+        logging.basicConfig(level=logging.DEBUG,
+                            format='[%(asctime)s] [%(threadName)s] '
+                                   ' %(message)s',
+                            datefmt='%H:%M:%S')
     else:
-        logging_level = logging.INFO
-
-    logging.basicConfig(level=logging_level,
-                        format='[%(asctime)s] %(message)s',
-                        datefmt='%H:%M:%S')
+        logging.basicConfig(level=logging.INFO,
+                            format='[%(asctime)s] %(message)s',
+                            datefmt='%H:%M:%S')
 
     test_driver_path = args.path[0]
     if not os.path.isfile(test_driver_path):
         logging.error("%s does not exist" % test_driver_path)
         sys.exit(1)
 
-    runner = TestDriverRunner(args, 4)
+    runner = TestDriverRunner(args)
     runner.start()
