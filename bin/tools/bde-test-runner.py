@@ -47,29 +47,38 @@ class TestInfo(object):
 
 
 class TestCaseRunner(threading.Thread):
-    def __init__(self, info, status):
+    def __init__(self, id_, info, status):
         threading.Thread.__init__(self)
         self._info = info
         self._status = status
+        self.proc = None
+        self.id_ = id_
+
+    def log(self, message):
+        logging.info("Case %d: %s" % (self.case, message))
+
+    def debug(self, message):
+        logging.debug("Case %d: %s" % (self.case, message))
 
     def run(self):
         while True:
-            test_case = self._status.next_test_case()
-            if test_case <= 0:
+            self.case = self._status.next_test_case()
+
+            # self.test_case = test_case
+            if self.case <= 0:
                 return
 
-            logging.info("Case %d: Start" % test_case)
-            cmd = self._info.get_test_run_cmd(test_case)
-            logging.debug("Case %d: cmd: %s", test_case, cmd)
+            self.debug("START")
+            cmd = self._info.get_test_run_cmd(self.case)
+            self.debug("CMD %s" % cmd)
 
             try:
-                p = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT)
-                (out, err) = p.communicate()
-                ret = p.returncode
+                self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                             stderr=subprocess.STDOUT)
+                (out, err) = self.proc.communicate()
+                ret = self.proc.returncode
             except Exception as e:
-                logging.exception('Case %d: Failed to execute %s (%s)' %
-                                  (test_case, cmd, str(e)))
+                self.log("FAILED (%s)" % str(e))
                 self._status.notify_done()
                 return
 
@@ -84,38 +93,56 @@ class TestCaseRunner(threading.Thread):
             #   * On Linux, return code is always forced to be unsigned.
             #   * On Windows, return code is signed.
             #   * On Cygwin, -1 return code is 127!
-            if (test_case > 99 or ret == -1 or ret == 255 or ret == 127):
-                logging.info("Case %d: Does not exist" % test_case)
-                self._status.notify_done()
+            if (self.case > 99 or ret == -1 or ret == 255 or ret == 127):
+                self.debug("DOES NOT EXIST")
+                # self._status.notify_done()
                 return
+            elif ret == 0:
+                self.log("SUCCESS (ret: %d):\n%s" % (ret, out))
             else:
-                logging.info("Case %d: Done (ret: %d):\n%s" %
-                             (test_case, ret, out))
+                self.log("FAILED (ret: %d):\n%s" % (ret, out))
 
 
 class TestDriverRunner:
     def __init__(self, args, num_jobs):
+        self._args = args
         self._info = TestInfo(args)
         self._status_cond = threading.Condition()
         self._status = TestStatus(self._status_cond)
         self._num_jobs = num_jobs
-        self._workers = [TestCaseRunner(self._info, self._status)
+        self._workers = [TestCaseRunner(j, self._info, self._status)
                          for j in range(num_jobs)]
+
+    def _terminate_workers(self):
+        logging.info("TIMED OUT AFTER %d SECONDS" % self._args.timeout)
+        for worker in self._workers:
+            # The following method to terminate processes is probably not
+            # thread safe with out locks, but considering that we are a test
+            # driver runner, doing so is probably acceptable.
+            if worker.is_alive() and worker.proc:
+                logging.info("TERMINATING CASE %d [thread %d] **" %
+                             (worker.case, worker.id_))
+                worker.proc.terminate()
 
     def start(self):
         for worker in self._workers:
             worker.start()
 
+        timer = threading.Timer(self._args.timeout, self._terminate_workers)
+        timer.start()
+        logging.debug("TIMER STARTED")
+
         self._status_cond.acquire()
         try:
             if not self._status.done_flag:
-                self._status_cond.wait()
+                self._status_cond.wait(1)
         finally:
             self._status_cond.release()
 
         for worker in self._workers:
             worker.join()
 
+        timer.cancel()
 
 if __name__ == '__main__':
 
@@ -127,7 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('--valgrind')
     parser.add_argument('--verbosity', '-v', type=int, default=0)
     parser.add_argument('--debug', '-d', action='store_true')
-    parser.add_argument('--timeout', type=int, default=100)
+    parser.add_argument('--timeout', type=int, default=120)
     parser.add_argument('path', metavar='TEST_DRIVER_PATH',
                         type=str, nargs=1)
 
