@@ -45,7 +45,7 @@ def make_build_config(repo_context, build_flags_parser, uplid, ufid,
     # operation below once we remove the the option rules for 'shr' in the
     # default option files.
 
-    effective_ufid = copy.copy(build_config.ufid)
+    effective_ufid = copy.deepcopy(build_config.ufid)
     effective_ufid.flags.discard('shr')
     def_oe = optionsevaluator.OptionsEvaluator(build_config.uplid,
                                                effective_ufid,
@@ -53,7 +53,7 @@ def make_build_config(repo_context, build_flags_parser, uplid, ufid,
 
     def_oe.store_option_rules(default_rules, debug_keys)
 
-    def_oe_copy = def_oe.copy()
+    def_oe_copy = copy.deepcopy(def_oe)
     def_oe_copy.evaluate()
     build_config.default_flags = get_build_flags_from_opts(
         build_flags_parser, def_oe_copy.results, def_oe_copy.results)
@@ -115,12 +115,13 @@ def make_build_config(repo_context, build_flags_parser, uplid, ufid,
         # Store options from dependencies, options for exports, and internal
         # options separately
 
-        dep_oe = oe.copy()
+        dep_oe = copy.deepcopy(oe)
+        dep_oe.evaluate()
         oe.store_option_rules(uor.cap)
         oe.store_option_rules(uor.defs)
         set_unit_loc(oe, uor)
-        export_oe = oe.copy()
-        int_oe = oe.copy()
+        export_oe = copy.deepcopy(oe)
+        int_oe = copy.deepcopy(oe)
         export_oe.evaluate()
         if export_oe.results.get('CAPABILITY') == 'NEVER':
             logutil.info('skipped %s' % uor_name)
@@ -130,7 +131,7 @@ def make_build_config(repo_context, build_flags_parser, uplid, ufid,
 
         # Copy unevaluted internal options to be used by packages within
         # package groups.
-        int_oe_copy = int_oe.copy()
+        int_oe_copy = copy.deepcopy(int_oe)
         if debug_keys:
             logutil.info('--Evaluating %s' % uor_name)
         int_oe.evaluate(debug_keys)
@@ -140,6 +141,7 @@ def make_build_config(repo_context, build_flags_parser, uplid, ufid,
         # job done.
         dep_flags = get_build_flags_from_opts(build_flags_parser,
                                               dep_oe.results, dep_oe.results)
+
         uor_bc.flags = get_build_flags_from_opts(
             build_flags_parser, int_oe.results, export_oe.results,
             dep_flags.export_flags, dep_flags.export_libs)

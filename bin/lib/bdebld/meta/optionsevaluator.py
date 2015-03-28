@@ -134,9 +134,6 @@ class OptionsEvaluator(object):
         """
         self.results.clear()
 
-    def copy(self):
-        return copy.copy(self)
-
     def evaluate(self, debug_keys=[]):
         """Evaluate stored options.
         """
