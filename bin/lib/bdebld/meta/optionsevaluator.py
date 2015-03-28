@@ -37,7 +37,7 @@ class OptionsEvaluator(object):
         self._uplid = uplid
         self._ufid = ufid
         if initial_options:
-            self.results = copy.deepcopy(initial_options)
+            self.results = copy.copy(initial_options)
         else:
             self.results = {}
 
@@ -133,6 +133,9 @@ class OptionsEvaluator(object):
         """Clear all stored key values.
         """
         self.results.clear()
+
+    def copy(self):
+        return copy.copy(self)
 
     def evaluate(self, debug_keys=[]):
         """Evaluate stored options.
