@@ -102,7 +102,7 @@ def get_ufid_cmdline_options():
         (('cpp-std',),
          {'type': 'choice',
           'default': None,
-          'choices': (None, '03', '11'),
+          'choices': (None, '03', '11', '14'),
           'help': 'use a C++11 standard version ("03"/"11") '
                   '[default value depends on compiler]'}),
         (('t', 'ufid'),
@@ -128,7 +128,7 @@ def get_default_cpp_std(compiler_type, compiler_version):
 
     if (compiler_type == 'gcc' and compiler_version >= '4.8' or
             compiler_type == 'clang' and compiler_version >= '3.6'):
-        return "11"
+        return "14"
     return "03"
 
 
@@ -160,7 +160,7 @@ def make_ufid_from_cmdline_options(opts):
         'build_type': {'debug': 'dbg', 'release': 'opt'},
         'safe': {True: 'safe'},
         'safe2': {True: 'safe2'},
-        'cpp_std': {'11': 'cpp11'},
+        'cpp_std': {'11': 'cpp11', '14': 'cpp14'},
         'noexception': {False: 'exc'},
         'library_type': {'shared': 'shr'}
         }

@@ -77,6 +77,16 @@
 !!  unix-*-*-*-clang      cpp11  CPP11_FLAGS   =  -std=c++11
 ++  *                     cpp11  BDE_CXXFLAGS  =  $(CPP11_FLAGS)
 
+
+#==============================================================================
+# C++14 support
+#==============================================================================
+
+++  *                     cpp14  CPP14_FLAGS   =  --this-compiler-does-not-have-cpp11-support-configured
+!!  unix-*-*-*-gcc-4.7.0  cpp14  CPP14_FLAGS   =  -std=c++14
+!!  unix-*-*-*-clang      cpp14  CPP14_FLAGS   =  -std=c++14
+++  *                     cpp14  BDE_CXXFLAGS  =  $(CPP14_FLAGS)
+
 #==============================================================================
 # FLAGS: BDE_CFLAGS, BDE_CXXFLAGS, BDE_LDFLAGS
 #==============================================================================
