@@ -26,6 +26,7 @@ class RepoLayout(mixins.BasicEqualityMixin, mixins.BasicReprMixin):
         self.third_party_package_dirs = []
         self.app_package_dirs = []
         self.group_abs_dirs = []
+        self.is_gtest = False
 
 # -----------------------------------------------------------------------------
 # Copyright 2015 Bloomberg Finance L.P.

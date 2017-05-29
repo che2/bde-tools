@@ -31,6 +31,8 @@ def make_build_config(repo_context, build_flags_parser, uplid, ufid,
     build_config = buildconfig.BuildConfig(repo_context.root_path, uplid,
                                            ufid)
 
+    build_config.is_gtest = repo_context.is_gtest
+
     for unit in repo_context.units.values():
         if unit.type_ == repounits.UnitType.THIRD_PARTY_DIR:
             build_config.third_party_dirs[unit.name] = unit

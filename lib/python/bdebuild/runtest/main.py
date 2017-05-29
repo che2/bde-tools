@@ -70,7 +70,8 @@ def get_cmdline_options():
     parser.add_option('--filter-abi-bits', choices=('32', '64'),
                       default=None,
                       help='(default: "ABI_BITS" environment variable)')
-
+    parser.add_option('--gtest', action='store_true',
+                      help='run gtest test driver')
     return parser
 
 
@@ -98,6 +99,7 @@ def make_context_from_options(options, args):
         junit_file_path=options.junit,
         policy_path=policy_path,
         valgrind_tool=valgrind_tool,
+        has_count=not options.gtest,
         filter_host_type=options.filter_host_type,
         filter_abi_bits=options.filter_abi_bits)
     test_logger = log.Log(test_options)

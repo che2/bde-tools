@@ -18,6 +18,7 @@ class Options(object):
         timeout (int): Test driver timeout in seconds.
         valgrind_tool (str): The valgrind tool to use. Don't use valgrind if
             None.
+        has_count (bool): Whether the test driver has bde-style test counts
         filter_abi_bits (str): Override abi_bits filter for test policy.
         filter_host_type (str): Override host_type filter for test policy.
 
@@ -34,6 +35,7 @@ class Options(object):
         self.num_jobs = kw['num_jobs']
         self.timeout = kw['timeout']
         self.valgrind_tool = kw['valgrind_tool']
+        self.has_count = kw['has_count']
         self.filter_abi_bits = kw['filter_abi_bits']
         self.filter_host_type = kw['filter_host_type']
 

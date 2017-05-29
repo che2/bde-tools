@@ -25,6 +25,10 @@ class _Status(object):
                 return -1
             else:
                 next_case_num = self._case_num + 1
+                if (not self._ctx.options.has_count and next_case_num > 1):
+                    self.notify_done()
+                    return -1
+
                 while self._ctx.policy.is_skip_case(next_case_num):
                     self._ctx.log.record_skip(next_case_num)
                     next_case_num += 1

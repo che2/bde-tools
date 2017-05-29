@@ -75,6 +75,8 @@ class utest(Task.Task):
             '-j%s' % Options.options.test_j,
             self.testdriver_node.abspath()
         ]
+        if Options.options.gtest:
+            testcmd += ['--gtest']
         if Options.options.test_junit:
             testcmd += ['--junit=%s-junit.xml' %
                         self.testdriver_node.abspath()]
@@ -354,6 +356,10 @@ def options(ctx):
                    help='use valgrind tool (memchk/helgrind/drd) '
                    '[default: %default]',
                    dest='valgrind_tool')
+
+    grp.add_option('--gtest', action='store_true', default=False,
+                   help='expect gtest test drivers',
+                   dest='gtest')
 
 # -----------------------------------------------------------------------------
 # Copyright 2015 Bloomberg Finance L.P.

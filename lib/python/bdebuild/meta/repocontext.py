@@ -14,6 +14,7 @@ class RepoContext(object):
     def __init__(self):
         self.root_path = None
         self.units = {}
+        self.is_gtest = False
 
     def add_unit(self, unit):
         if unit.name in self.units:

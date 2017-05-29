@@ -45,6 +45,7 @@ class BuildConfig(mixins.BasicEqualityMixin, mixins.BasicSerializeMixin):
         self.stdalone_packages = {}
         self.inner_packages = {}
         self.third_party_dirs = {}
+        self.is_gtest = False
 
     def __repr__(self):
         return pprint.pformat(vars(self))

@@ -80,8 +80,6 @@ class TestRepoContextLoaderUtil(unittest.TestCase):
         exp_package.pt_extras.cpp_tests = set(['test/test1.cpp',
                                                'test/test2.cpp'])
         exp_package.pt_extras.c_tests = set(['test/test3.c'])
-        print(package)
-        print(exp_package)
         self.assertEqual(package, exp_package)
 
         path = os.path.join(self.repo_root, 'groups', 'gr2', 'gr2b+c')

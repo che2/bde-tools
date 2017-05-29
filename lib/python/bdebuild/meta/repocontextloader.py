@@ -50,6 +50,9 @@ class RepoContextLoader(object):
     def _load_repo(self, repo_path):
         repo_layout, layout_config_path = repolayoututil.get_repo_layout(
             repo_path)
+        if repo_layout.is_gtest:
+            self.repo_context.is_gtest = True
+
         if layout_config_path:
             logutil.start_msg('Using layout configuration from')
             logutil.end_msg(layout_config_path)

@@ -49,6 +49,7 @@ class TestRepoLayout(unittest.TestCase):
         repo_layout.group_dirs = ['groups1', 'groups2']
         repo_layout.stand_alone_package_dirs = ['sap1', 'sap2']
         repo_layout.third_party_package_dirs = ['tpp1', 'tpp2']
+        repo_layout.is_gtest = True
 
         repolayoututil.write_repo_layout_to_json(out, repo_layout)
 
@@ -58,6 +59,7 @@ class TestRepoLayout(unittest.TestCase):
             'group_dirs': ['groups1', 'groups2'],
             'stand_alone_package_dirs': ['sap1', 'sap2'],
             'third_party_package_dirs': ['tpp1', 'tpp2'],
+            'is_gtest': True
         }
 
         self.assertEqual(json.dumps(exp_value, sort_keys=True),

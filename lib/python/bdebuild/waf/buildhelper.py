@@ -50,6 +50,7 @@ class BuildHelper(object):
             self.ctx.env['install_config'])
 
         self.uor_digraph = buildconfigutil.get_uor_digraph(self.build_config)
+        self.ctx.options.gtest = self.build_config.is_gtest
 
         if self.ctx.cmd in ('install', 'uninstall'):
             self.install_config.setup_install_uors(
