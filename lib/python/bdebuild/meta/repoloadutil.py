@@ -126,6 +126,7 @@ def _load_plus_package_extras(package):
         headers.extend(glob.glob(os.path.join(package.path, '*.SUNWCCh')))
         headers.extend(glob.glob(os.path.join(package.path, '*/*.h')))
         headers.extend(glob.glob(os.path.join(package.path, '*/*.SUNWCCh')))
+        extras.headers = rps(headers)
     elif len(package.pub) > 0:
         extras.headers = package.pub
     else:  # pub file is empty

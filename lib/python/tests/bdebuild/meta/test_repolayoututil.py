@@ -44,23 +44,24 @@ class TestRepoLayout(unittest.TestCase):
     def test_write_repo_layout_to_json(self):
         out = StringIO()
         repo_layout = repolayout.RepoLayout()
-        repo_layout.group_dirs = ['groups1', 'groups2']
         repo_layout.app_package_dirs = ['apps1', 'apps2']
+        repo_layout.group_abs_dirs = ['groupabs1', 'groupabs2']
+        repo_layout.group_dirs = ['groups1', 'groups2']
         repo_layout.stand_alone_package_dirs = ['sap1', 'sap2']
         repo_layout.third_party_package_dirs = ['tpp1', 'tpp2']
-        repo_layout.group_abs_dirs = ['groupabs1', 'groupabs2']
 
         repolayoututil.write_repo_layout_to_json(out, repo_layout)
 
         exp_value = {
-            'group_dirs': ['groups1', 'groups2'],
             'app_package_dirs': ['apps1', 'apps2'],
+            'group_abs_dirs': ['groupabs1', 'groupabs2'],
+            'group_dirs': ['groups1', 'groups2'],
             'stand_alone_package_dirs': ['sap1', 'sap2'],
             'third_party_package_dirs': ['tpp1', 'tpp2'],
-            'group_abs_dirs': ['groupabs1', 'groupabs2']
         }
 
-        self.assertEqual(json.dumps(exp_value), out.getvalue())
+        self.assertEqual(json.dumps(exp_value, sort_keys=True),
+                         out.getvalue())
 
     def test_parse_repo_layout_from_json(self):
 

@@ -1,10 +1,12 @@
 import json
 import os
+import collections
 
 from bdebuild.common import blderror
 from bdebuild.common import logutil
 from bdebuild.meta import repolayout
 from bdebuild.meta import repoloadutil
+
 
 
 def get_repo_layout(repo_root_path):
@@ -75,7 +77,7 @@ def write_repo_layout_to_json(file_, repo_layout):
     Raises:
         IOError: Error writing the file.
     """
-    json.dump(repo_layout.__dict__, file_)
+    json.dump(repo_layout.__dict__, file_, sort_keys=True)
 
 
 def parse_repo_layout_from_json(file_):
