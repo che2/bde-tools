@@ -220,9 +220,6 @@ class ConfigureHelper(object):
 
         pkgconfig_args = ['--libs', '--cflags']
 
-        if 'shr' not in self.ufid.flags:
-            pkgconfig_args.append('--static')
-
         # If the static build is chosen (the default), waf assumes that all
         # libraries queried from pkg-config are to be built statically, which
         # is not true for some libraries. We work around this issue by manually
@@ -237,6 +234,11 @@ class ConfigureHelper(object):
                        'stlibpath']
         lib_suffix = self.ctx.options.lib_suffix
         for lib in sorted(self.build_config.external_dep):
+            static_arg = []
+            if ('shr' not in self.ufid.flags and
+                    lib not in ('gtest', 'gmock')):
+                static_arg = ['--static']
+
             actual_lib = lib + str(lib_suffix or '')
             help_str = """failed to find the library using pkg-config
 Maybe "%s.pc" is missing from "PKG_CONFIG_PATH"? Inspect config.log in the
@@ -244,7 +246,7 @@ build output directory for details.""" % \
                 actual_lib
             self.ctx.check_cfg(
                 package=actual_lib,
-                args=pkgconfig_args,
+                args=pkgconfig_args + static_arg,
                 errmsg=help_str)
 
             if lib_suffix:
